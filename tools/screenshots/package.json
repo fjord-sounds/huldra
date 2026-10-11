@@ -1,0 +1,12 @@
+{
+  "name": "huldra-screenshots",
+  "private": true,
+  "description": "Composes the README product image of Huldra with Playwright",
+  "type": "module",
+  "scripts": {
+    "hero": "node hero.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

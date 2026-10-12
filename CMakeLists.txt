@@ -18,7 +18,7 @@ endif()
 
 # JUCE 8 is not part of this repository. A local checkout in external/JUCE (or -DHULDRA_JUCE_DIR=<path>) is used
 # if present; otherwise the pinned release is downloaded when CMake configures.
-set(HULDRA_JUCE_TAG "8.0.4")
+set(HULDRA_JUCE_TAG "9.0.4")
 set(HULDRA_JUCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/JUCE" CACHE PATH "Local JUCE checkout (optional)")
 if(EXISTS "${HULDRA_JUCE_DIR}/CMakeLists.txt")
     add_subdirectory(${HULDRA_JUCE_DIR} JUCE)

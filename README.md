@@ -8,7 +8,7 @@
 A sound design sampler for every common DAW – VST3, Audio Unit, LV2 and a standalone app. Load or record your voice
 (or anything else), and turn it into keys, pads, choirs, plucks and vocal chops: four engines (classic, granular,
 spectral and a formant-keeping vocal engine), automatic slicing, a keymap for many sounds at once, every key editable
-on its own, deep modulation, a motion engine that can play by itself, nine effects and 325 factory presets.
+on its own, deep modulation, a motion engine that can play by itself, fifteen effects and 325 factory presets.
 *Huldra* is the forest spirit of Nordic folklore whose voice lures you into the woods; it is the third instrument from
 Fjord and shares its Scandinavian, minimal interface (light and dark).
 
@@ -22,6 +22,7 @@ Fjord and shares its Scandinavian, minimal interface (light and dark).
 <p>
   <a href="#a-tour">Tour</a> ·
   <a href="#engines">Engines</a> ·
+  <a href="#effects">Effects</a> ·
   <a href="#presets">Presets</a> ·
   <a href="#building">Building</a> ·
   <a href="#tests">Tests</a>
@@ -177,10 +178,19 @@ plays the same phrase).
   <img alt="FX page" src="docs/screenshots/fx-light.webp">
 </picture>
 
-Nine effects as tiles – drag them into any order: saturation, lo-fi (wow, flutter, age, hiss, bits, downsampling),
-compressor, squash (three-band upward and downward compression), EQ, motion (chorus, ensemble, phaser, flanger,
-doubler), delay (clean, tape, grains) and reverb (room, plate, hall, **shimmer** with an octave-up tail, **cloud**),
-width – and a limiter at the end. Every tile shows its effect live.
+The same FX page as in every Fjord plugin: fifteen effects and the clipper as live tiles in two rows – drag them into
+any order; the clipper is always last. Every tile shows its effect live (the saturation curve with the signal riding on
+it, the compressor's gain reduction, reverb particles that fade with the decay, echo rings …). The selected effect opens
+below with a large graph (the EQ points can be dragged, wheel = Q), its controls and its own presets (at least 40
+each). **FX CHAIN** loads a whole chain (35 factory chains, saved to `~/Music/Fjord/FX Chains`); **Lock FX** keeps the
+effects while you browse sounds.
+
+### Locks
+
+The padlock in the preset bar keeps parts of the treatment while you browse presets: the engine choice, any of the four
+engines, the chops, key edits, voice, filter, the envelopes and MSEGs, each LFO, the modulation matrix, macros, the morph
+pad, the motion settings (arp, generative, scale, chords, pattern), the whole effect chain or single effects. Small
+padlocks sit in the titles of the panels on the pages. Locked parts stay as they are when you load another preset.
 
 ### Presets
 
@@ -207,6 +217,15 @@ Every engine plays the note you press: the test suite measures the output of all
 (within a third of a semitone). **Retune** pulls the sound's own melody to the scale, smoothly or hard (the classic
 auto-tune effect), in the classic and the vocal engine.
 
+## Effects
+
+Huldra uses the effects of [fjord-base](https://github.com/fjord-sounds/fjord-base), the code all Fjord plugins share:
+Saturation, Lo-Fi, Transient, Compressor, Squash, EQ, Filter, Motion (chorus, ensemble, phaser, flanger, doubler,
+vibrato), Delay, Reverb (room, plate, hall, shimmer, cloud, studio, freeze), Width, Tremolo / Auto-Pan, Frequency
+Shifter, Exciter, Harmonizer and the Clipper. Every effect has at least 40 presets and also exists as a plugin of its
+own ("Fjord Reverb" …). All parameters:
+[fjord-base/docs/effects.md](https://github.com/fjord-sounds/fjord-base/blob/main/docs/effects.md). The filter envelope follows the notes you play.
+
 ## Presets
 
 325 factory presets in eleven categories – Pads, Keys, Plucks, Leads & Bass, Choirs, Voices, Vocal Chops, Textures,
@@ -218,9 +237,13 @@ search, tags and favourites; your own presets go to `~/Music/Fjord/Huldra/Preset
 ## Building
 
 Requirements: CMake 3.22+, a C++20 compiler (Xcode command line tools, Visual Studio 2022 or GCC/Clang on Linux).
-JUCE 8 is downloaded when CMake configures (or use a local checkout with `-DHULDRA_JUCE_DIR=/path/to/JUCE`).
+Huldra is built on [fjord-base](https://github.com/fjord-sounds/fjord-base), the code all Fjord plugins share (interface,
+effects, build helpers): **clone it next to this repository** (`git clone https://github.com/fjord-sounds/fjord-base
+../fjord-base`) – without it CMake downloads the release pinned in `CMakeLists.txt` (`FJORD_BASE_TAG`). JUCE 8 comes
+through fjord-base.
 
 ```bash
+git clone https://github.com/fjord-sounds/fjord-base.git
 git clone https://github.com/fjord-sounds/huldra.git && cd huldra
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
@@ -247,4 +270,4 @@ Apple's `auval`.
 ## Licence
 
 Huldra is free software under the [GNU Affero General Public License v3](LICENSE). See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for JUCE, Signalsmith Stretch and the Manrope font.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for fjord-base, JUCE, Signalsmith Stretch and the Manrope font.

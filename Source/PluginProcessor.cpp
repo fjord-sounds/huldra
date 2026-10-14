@@ -3,6 +3,36 @@
 #include "ui/Theme.h"
 
 namespace P = huldra::params;
+
+// Huldra inside the family design: a soft rose, the veil gradient (rose -> lilac -> ice blue).
+const fjord::base::Brand& fjord::base::brand()
+{
+    static const Brand b = []
+    {
+        Brand x;
+        x.name = "Huldra";
+        x.logo = "huldra";
+        x.tagline = "SOUND DESIGN SAMPLER";
+        x.githubUrl = "https://github.com/fjord-sounds/huldra";
+        x.settingsFolder = "Fjord/Huldra";
+        x.userPresetFolder = "Fjord/Huldra/Presets";
+        x.light = familyLight (juce::Colour (0xffb0545a));   // deep rose
+        x.dark = familyDark (juce::Colour (0xfff29c9c));     // glowing rose
+        x.gradientDark = { juce::Colour (0xfff29c9c), juce::Colour (0xffb49cf2), juce::Colour (0xff7fc4e8) };
+        x.gradientLight = { juce::Colour (0xffb0545a), juce::Colour (0xff7a5cc0), juce::Colour (0xff2f7fb0) };
+        x.glow = { juce::Colour (0xfff29c9c), juce::Colour (0xffb49cf2), juce::Colour (0xff7fc4e8) };
+        x.glowDark = 0.13f;
+        x.glowLight = 0.08f;
+        x.flash = juce::Colour (0xfffbe4ea);
+        x.categories = { "Pads", "Keys", "Plucks", "Leads & Bass", "Choirs", "Voices", "Vocal Chops", "Textures", "Motion",
+                         "Risers & FX", "Experimental" };
+        x.tags = { "Pad", "Keys", "Pluck", "Lead", "Bass", "Chops", "Choir", "Texture", "Airy", "Warm", "Dark", "Bright",
+                   "Intimate", "Wide", "Lo-Fi", "Evolving", "Rhythmic", "Autoplay", "Arp", "Granular", "Spectral", "Vocal",
+                   "Glitch", "Cinematic" };
+        return x;
+    }();
+    return b;
+}
 using huldra::dsp::NoteEvent;
 
 HuldraProcessor::HuldraProcessor()
@@ -13,16 +43,11 @@ HuldraProcessor::HuldraProcessor()
 {
     P::modTargets();   // build the static tables here, never on the audio thread
     huldra::InstrumentState::ensureChildren (apvts.state);
-    if (! apvts.state.hasProperty ("fxOrder"))
-        apvts.state.setProperty ("fxOrder", huldra::fx::orderToString (huldra::fx::defaultOrder()), nullptr);
-    apvts.state.addListener (this);
-    syncFxOrderFromState();
 }
 
 HuldraProcessor::~HuldraProcessor()
 {
     bouncePool.removeAllJobs (true, 20000);
-    apvts.state.removeListener (this);
 }
 
 void HuldraProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -32,6 +57,7 @@ void HuldraProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     synth.prepare (sampleRate, maxBlockSize);
     motion.prepare (sampleRate);
     fxChain.prepare (sampleRate, maxBlockSize);
+    splitter.prepare (maxBlockSize);
     masterGain.reset (sampleRate, 0.02);
     masterGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (apvts.getRawParameterValue (P::paramId (P::MasterGain))->load()));
     presetLevel.reset (sampleRate, 0.02);
@@ -69,35 +95,14 @@ void HuldraProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         fxChain.reset();
     }
 
-    double ppq = 0.0, tempo = 120.0;
-    bool playing = false;
-    if (auto* head = getPlayHead())
-        if (auto pos = head->getPosition())
-        {
-            playing = pos->getIsPlaying();
-            tempo = pos->getBpm().orFallback (0.0);
-            ppq = pos->getPpqPosition().orFallback (0.0);
-        }
-    hostPlaying.store (playing);
-    if (! (tempo > 1.0 && tempo < 2000.0))
-        tempo = apvts.getRawParameterValue (P::paramId (P::MotBpm))->load();
-    bpm.store (tempo);
+    const auto transport = fjord::base::plugin::Transport::read (*this, apvts.getRawParameterValue (P::paramId (P::MotBpm))->load());
+    hostPlaying.store (transport.playing);
+    bpm.store (transport.bpm);
 
-    const int total = buffer.getNumSamples();
-    if (total <= maxBlockSize)
-        return processChunk (buffer, midi, ppq, playing);
-
-    for (int start = 0; start < total; start += maxBlockSize)
+    splitter.process (buffer, midi, [&] (juce::AudioBuffer<float>& part, juce::MidiBuffer& partMidi, int offset)
     {
-        const int n = std::min (maxBlockSize, total - start);
-        juce::AudioBuffer<float> part (buffer.getArrayOfWritePointers(), std::min (2, buffer.getNumChannels()), start, n);
-        juce::MidiBuffer partMidi;
-        for (const auto meta : midi)
-            if (meta.samplePosition >= start && meta.samplePosition < start + n)
-                partMidi.addEvent (meta.getMessage(), meta.samplePosition - start);
-        processChunk (part, partMidi, ppq + tempo / 60.0 * start / currentSampleRate, playing);
-    }
-    midi.clear();
+        processChunk (part, partMidi, transport.ppq + transport.bpm / 60.0 * offset / currentSampleRate, transport.playing);
+    });
 }
 
 void HuldraProcessor::applyPadDrift (P::Values& v, int numSamples)
@@ -167,10 +172,18 @@ void HuldraProcessor::processChunk (juce::AudioBuffer<float>& buffer, juce::Midi
     presetLevel.setTargetValue (juce::Decibels::decibelsToGain (values[P::PresetLevel]));
     presetLevel.applyGain (buffer, n);
 
-    huldra::fx::Order order;
-    for (size_t i = 0; i < order.size(); ++i)
-        order[i] = fxOrder[i].load (std::memory_order_relaxed);
-    fxChain.process ({ l, r, n }, liveValues, order, bpm.load(), &fxMeters);
+    // New notes restart the effect filter's envelope
+    int numTriggers = 0;
+    for (int i = 0; i < numOut && numTriggers < (int) triggerPositions.size(); ++i)
+        if (outEvents[(size_t) i].type == NoteEvent::On)
+            triggerPositions[(size_t) numTriggers++] = outEvents[(size_t) i].sample;
+    fjord::base::fx::Context ctx;
+    ctx.bpm = bpm.load();
+    ctx.ppq = ppq;
+    ctx.playing = playing;
+    ctx.triggers = triggerPositions.data();
+    ctx.numTriggers = numTriggers;
+    fxChain.process ({ l, r, n }, P::fxValues (liveValues), fxOrder.get(), ctx, &fxMeters);
 
     masterGain.setTargetValue (juce::Decibels::decibelsToGain (values[P::MasterGain]));
     masterGain.applyGain (buffer, n);
@@ -190,22 +203,17 @@ void HuldraProcessor::processChunk (juce::AudioBuffer<float>& buffer, juce::Midi
     }
 
     scope.push (l, r, n);
-    for (int ch = 0; ch < 2; ++ch)
-    {
-        const float peak = buffer.getMagnitude (ch, 0, n);
-        auto& slot = outputPeak[(size_t) ch];
-        float prev = slot.load (std::memory_order_relaxed);
-        while (peak > prev && ! slot.compare_exchange_weak (prev, peak, std::memory_order_relaxed)) {}
-    }
+    outputPeaks.push (buffer, 0, n);
 }
 
-void HuldraProcessor::renderOffline (const P::Values& v, const huldra::Snapshot& snap, const huldra::fx::Order& order,
+void HuldraProcessor::renderOffline (const P::Values& v, const huldra::Snapshot& snap, const fjord::base::fx::Order& order,
                                      double sampleRate, int note, float velocity, double holdSeconds, juce::AudioBuffer<float>& out)
 {
     constexpr int block = 256;
     auto synth = std::make_unique<huldra::dsp::Synth>();
     auto motion = std::make_unique<huldra::motion::MotionEngine>();
-    auto fx = std::make_unique<huldra::fx::FxChain>();
+    auto fx = std::make_unique<fjord::base::fx::Chain>();
+    std::vector<int> triggers ((size_t) huldra::motion::MotionEngine::kMaxOut);
     synth->prepare (sampleRate, block);
     motion->prepare (sampleRate);
     fx->prepare (sampleRate, block);
@@ -235,7 +243,15 @@ void HuldraProcessor::renderOffline (const P::Values& v, const huldra::Snapshot&
         synth->applyGlobalModulation (live);
         const float level = juce::Decibels::decibelsToGain (v[P::PresetLevel]);
         for (int i = 0; i < n; ++i) { l[i] *= level; r[i] *= level; }
-        fx->process ({ l, r, n }, live, order, v[P::MotBpm], nullptr);
+        int numTriggers = 0;
+        for (int i = 0; i < numOut && numTriggers < (int) triggers.size(); ++i)
+            if (evOut[(size_t) i].type == NoteEvent::On) triggers[(size_t) numTriggers++] = evOut[(size_t) i].sample;
+        fjord::base::fx::Context ctx;
+        ctx.bpm = v[P::MotBpm];
+        ctx.ppq = ppq;
+        ctx.triggers = triggers.data();
+        ctx.numTriggers = numTriggers;
+        fx->process ({ l, r, n }, P::fxValues (live), order, ctx, nullptr);
         ppq += bps * n;
     }
 }
@@ -266,7 +282,7 @@ void HuldraProcessor::bounce (int note, double seconds, std::function<void (bool
     const int number = ++bounceCount;
     bouncePool.addJob ([this, v, order, rate, snapCopy, note, seconds, number, done]
     {
-        const double tail = std::min (8.0, (double) v[P::AmpRelease] + (v.b (P::VerbOn) ? v[P::VerbDecay] * 0.6 : 0.0) + 0.2);
+        const double tail = std::min (8.0, (double) v[P::AmpRelease] + (v.b (P::FxVerbOn) ? v[P::FxVerbDecay] * 0.6 : 0.0) + 0.2);
         juce::AudioBuffer<float> out (2, (int) ((seconds + tail) * rate));
         renderOffline (v, *snapCopy, order, rate, note, 0.85f, seconds, out);
         const float peak = out.getMagnitude (0, out.getNumSamples());
@@ -287,34 +303,8 @@ P::Values HuldraProcessor::currentValues() const
 {
     P::Values v;
     for (const auto& s : P::specs())
-        v[s.id] = apvts.getRawParameterValue (s.paramId)->load();
+        v.v[(size_t) s.id] = apvts.getRawParameterValue (s.paramId)->load();
     return v;
-}
-
-huldra::fx::Order HuldraProcessor::getFxOrder() const
-{
-    huldra::fx::Order o;
-    for (size_t i = 0; i < o.size(); ++i)
-        o[i] = fxOrder[i].load();
-    return o;
-}
-
-void HuldraProcessor::setFxOrder (const huldra::fx::Order& o)
-{
-    apvts.state.setProperty ("fxOrder", huldra::fx::orderToString (o), &undoManager);
-}
-
-void HuldraProcessor::syncFxOrderFromState()
-{
-    const auto o = huldra::fx::orderFromString (apvts.state.getProperty ("fxOrder").toString());
-    for (size_t i = 0; i < o.size(); ++i)
-        fxOrder[i].store (o[i]);
-}
-
-void HuldraProcessor::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& id)
-{
-    if (tree == apvts.state && id == juce::Identifier ("fxOrder"))
-        syncFxOrderFromState();
 }
 
 void HuldraProcessor::storeSnapshot (int slot)
@@ -359,67 +349,13 @@ const juce::String HuldraProcessor::getProgramName (int index)
 
 juce::String HuldraProcessor::getDebugReport() const
 {
-   #ifdef JucePlugin_VersionString
-    juce::String version = JucePlugin_VersionString;
-   #else
-    juce::String version = "dev";
-   #endif
-   #if JUCE_ARM
-    const juce::String arch = "arm64";
-   #elif JUCE_64BIT
-    const juce::String arch = "x86_64";
-   #else
-    const juce::String arch = "32-bit";
-   #endif
-
-    juce::StringArray lines;
-    const auto home = juce::File::getSpecialLocation (juce::File::userHomeDirectory).getFullPathName();
-    auto add = [&] (const juce::String& key, const juce::String& value)
-    {
-        lines.add (key.paddedRight (' ', 16) + (home.length() > 1 ? value.replace (home, "~") : value));
-    };
-
-    lines.add ("Huldra debug info");
-    lines.add ("-----------------");
-   #ifdef HULDRA_GIT_HASH
-    const juce::String build = juce::String (HULDRA_GIT_HASH) + ", ";
-   #else
-    const juce::String build;
-   #endif
-    add ("Version", version + " (" + build + arch + ", built " + __DATE__ + ")");
-    add ("Format", juce::AudioProcessor::getWrapperTypeDescription (wrapperType));
-    add ("Host", juce::PluginHostType().getHostDescription());
-    add ("Plugin", juce::File::getSpecialLocation (juce::File::currentApplicationFile).getFullPathName());
-    add ("User presets", huldra::PresetManager::getUserPresetFolder().getFullPathName());
-    add ("Settings", huldra::ui::Theme::get().getSettingsFile().getFullPathName());
-    add ("Sample rate", juce::String (getSampleRate(), 0) + " Hz, block " + juce::String (getBlockSize())
-                        + " (prepared " + juce::String (maxBlockSize) + ")");
-    add ("OS", juce::SystemStats::getOperatingSystemName() + (juce::SystemStats::isOperatingSystem64Bit() ? " 64-bit" : ""));
-    add ("CPU", juce::SystemStats::getCpuModel().trim() + ", " + juce::String (juce::SystemStats::getNumCpus()) + " cores");
-    add ("JUCE", juce::SystemStats::getJUCEVersion());
-    add ("Theme / scale", juce::String (huldra::ui::Theme::get().isDark() ? "dark" : "light") + ", "
-                          + juce::String (juce::roundToInt (huldra::ui::Theme::get().getScale() * 100.0f)) + " %");
-
-    int factory = 0, user = 0;
-    for (const auto& p : presetManager.getPresets())
-        (p.isFactory ? factory : user)++;
-    add ("Presets", juce::String (factory) + " factory, " + juce::String (user) + " user");
-    add ("Preset", presetManager.getCurrentName() + " (" + presetManager.getCurrentCategory() + ")");
+    fjord::base::plugin::DebugReport report (*this, const_cast<huldra::PresetManager*> (&presetManager), maxBlockSize);
     juce::StringArray sampleNames;
     for (const auto& s : instrument.getSamples())
         sampleNames.add (s->name + " (" + juce::String (s->seconds(), 1) + " s, " + juce::String (s->sampleRate, 0) + " Hz)");
-    add ("Samples", sampleNames.isEmpty() ? juce::String ("demo voice") : sampleNames.joinIntoString (", "));
-    add ("FX order", apvts.state.getProperty ("fxOrder").toString());
-
-    juce::StringArray changed;
-    for (auto* p : getParameters())
-        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-            if (std::abs (rp->getValue() - rp->getDefaultValue()) > 1.0e-5f)
-                changed.add (rp->getParameterID() + "=" + juce::String (rp->convertFrom0to1 (rp->getValue()), 4));
-    lines.add ("");
-    lines.add ("Changed parameters (" + juce::String (changed.size()) + "):");
-    lines.add (changed.joinIntoString (" "));
-    return lines.joinIntoString ("\n");
+    report.add ("Samples", sampleNames.isEmpty() ? juce::String ("demo voice") : sampleNames.joinIntoString (", "));
+    report.add ("FX order", apvts.state.getProperty ("fxOrder").toString());
+    return report.finish();
 }
 
 juce::AudioProcessorEditor* HuldraProcessor::createEditor()
@@ -430,13 +366,8 @@ juce::AudioProcessorEditor* HuldraProcessor::createEditor()
 namespace
 {
     // Version of the saved project state (not the plugin version). Raise it when a change needs the old state
-    // to be converted, and add the conversion to migrateState().
+    // to be converted (fjord-base/source/fjord_base/presets/Migration.h helps), and convert it in setStateInformation.
     constexpr int kStateVersion = 1;
-
-    void migrateState (juce::ValueTree& state)
-    {
-        state.setProperty ("stateVersion", kStateVersion, nullptr);
-    }
 }
 
 void HuldraProcessor::getStateInformation (juce::MemoryBlock& dest)
@@ -457,10 +388,9 @@ void HuldraProcessor::setStateInformation (const void* data, int size)
             auto tree = juce::ValueTree::fromXml (*xml);
             huldra::InstrumentState::ensureChildren (tree);
             apvts.replaceState (tree);
-            migrateState (apvts.state);
             instrument.restoreAudio();
             presetManager.restoreFromState();
-            syncFxOrderFromState();
+            fxOrder.sync();
             undoManager.clearUndoHistory();
 
             if (apvts.state.hasProperty ("darkTheme"))

@@ -72,7 +72,7 @@ namespace huldra::ui
     {
     public:
         LfoPanel (HuldraProcessor& p, int idx)
-            : proc (p), index (idx),
+            : proc (p), index (idx), lock (p.apvts, locks::ids().lfos[(size_t) idx]),
               shape (p.apvts, params::paramId (params::lfoParam (idx, 0)), lfoGlyph),
               rate (p.apvts, params::paramId (params::lfoParam (idx, 1)), "Rate"),
               sync (p.apvts, params::paramId (params::lfoParam (idx, 2)), "Sync"),
@@ -80,7 +80,7 @@ namespace huldra::ui
               retrig (p.apvts, params::paramId (params::lfoParam (idx, 4)), "Retrig"),
               fade (p.apvts, params::paramId (params::lfoParam (idx, 5)), "Fade")
         {
-            for (auto* c : std::initializer_list<juce::Component*> { &shape, &rate, &sync, &beats, &retrig, &fade })
+            for (auto* c : std::initializer_list<juce::Component*> { &shape, &rate, &sync, &beats, &retrig, &fade, &lock })
                 addAndMakeVisible (c);
             sync.onChange = [this] (bool) { resized(); };
         }
@@ -125,6 +125,7 @@ namespace huldra::ui
 
         void resized() override
         {
+            lock.place (getLocalBounds());
             auto r = getLocalBounds().reduced (10, 0).withTrimmedTop (30 + 50).withTrimmedBottom (6);
             shape.setBounds (r.removeFromTop (22));
             r.removeFromTop (4);
@@ -147,6 +148,7 @@ namespace huldra::ui
 
         HuldraProcessor& proc;
         int index;
+        PanelLock lock;   // keeps this LFO when switching presets
         Segmented shape;
         Knob rate;
         Toggle sync;
@@ -460,8 +462,13 @@ namespace huldra::ui
         explicit ModPage (HuldraProcessor& p)
             : Page (p), mseg (p), msegTabs ({ "MSEG 1", "MSEG 2", "MSEG 3" }),
               drift (p.apvts, params::paramId (params::PadDrift), "Drift"),
-              driftRate (p.apvts, params::paramId (params::PadDriftRate), "Drift Speed")
+              driftRate (p.apvts, params::paramId (params::PadDriftRate), "Drift Speed"),
+              macroLock (p.apvts, locks::ids().macros), matrixLock (p.apvts, locks::ids().matrix),
+              msegLocks { PanelLock (p.apvts, locks::ids().msegs[0]), PanelLock (p.apvts, locks::ids().msegs[1]), PanelLock (p.apvts, locks::ids().msegs[2]) }
         {
+            addAndMakeVisible (macroLock);
+            addAndMakeVisible (matrixLock);
+            for (auto& l : msegLocks) addChildComponent (l);
             for (int i = 0; i < params::kNumMacros; ++i)
             {
                 macros.push_back (std::make_unique<MacroKnob> (p, i));
@@ -548,6 +555,9 @@ namespace huldra::ui
                 msegLoop[(size_t) i]->setBounds (sd.removeFromTop (26).reduced (8, 0));
             }
             mseg.setBounds (ms);
+            macroLock.place (macroArea);
+            matrixLock.place (matrixArea);
+            for (auto& l : msegLocks) l.setBounds (msegArea.reduced (16, 0).removeFromTop (34).removeFromRight (18).withSizeKeepingCentre (18, 18));
 
             matrixView.setBounds (matrixArea.reduced (10, 0).withTrimmedTop (46).withTrimmedBottom (8));
             const int rowH = 30;
@@ -563,6 +573,7 @@ namespace huldra::ui
             {
                 msegTime[(size_t) i]->setVisible (i == mseg.getIndex());
                 msegLoop[(size_t) i]->setVisible (i == mseg.getIndex());
+                msegLocks[(size_t) i].setVisible (i == mseg.getIndex());
             }
         }
 
@@ -573,6 +584,8 @@ namespace huldra::ui
         std::vector<std::unique_ptr<Knob>> msegTime;
         std::vector<std::unique_ptr<Toggle>> msegLoop;
         Knob drift, driftRate;
+        PanelLock macroLock, matrixLock;   // keep the macros / the matrix when switching presets
+        std::array<PanelLock, params::kNumMsegs> msegLocks;   // the lock of the MSEG that is shown
         juce::Component matrixContent;
         juce::Viewport matrixView;
         std::vector<std::unique_ptr<MatrixRow>> rows;

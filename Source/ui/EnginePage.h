@@ -435,7 +435,7 @@ namespace huldra::ui
             const double sr = 48000.0;
             const double q = 0.5 + reso * 9.0;
 
-            fx::Biquad a, b, c;
+            dsp::Biquad a, b, c;
             static const float formants[5][3] = { { 800, 1150, 2900 }, { 400, 2000, 2800 }, { 300, 2300, 3000 }, { 450, 800, 2830 }, { 325, 700, 2530 } };
             auto mag = [&] (double f) -> double
             {
@@ -453,7 +453,7 @@ namespace huldra::ui
                         const float shift = std::sqrt (cutoff / 1000.0f);
                         double sum = 0.0;
                         const double gains[] = { 1.0, 0.6, 0.35 };
-                        fx::Biquad* bq[] = { &a, &b, &c };
+                        dsp::Biquad* bq[] = { &a, &b, &c };
                         for (int k = 0; k < 3; ++k)
                         {
                             const double fk = std::clamp ((formants[i0][k] + (formants[i1][k] - formants[i0][k]) * t) * shift, 40.0f, 20000.0f);
@@ -514,8 +514,14 @@ namespace huldra::ui
         explicit EnginePage (HuldraProcessor& p)
             : Page (p), cards (p), visual (p), curve (p),
               fenvGraph (p.apvts, P::FenvAttack, P::FenvDecay, P::FenvSustain, P::FenvRelease,
-                         [&p] { return p.voiceDisplay.sources[(size_t) P::ModSource::FilterEnv].load(); })
+                         [&p] { return p.voiceDisplay.sources[(size_t) P::ModSource::FilterEnv].load(); }),
+              filterLock (p.apvts, locks::ids().filter), fenvLock (p.apvts, locks::ids().filterEnv),
+              engineLocks { PanelLock (p.apvts, locks::ids().voice), PanelLock (p.apvts, locks::ids().granular),
+                            PanelLock (p.apvts, locks::ids().spectral), PanelLock (p.apvts, locks::ids().vocal) }
         {
+            addAndMakeVisible (filterLock);
+            addAndMakeVisible (fenvLock);
+            for (auto& l : engineLocks) addChildComponent (l);
             auto& s = p.apvts;
             addAndMakeVisible (cards);
             addAndMakeVisible (visual);
@@ -623,6 +629,9 @@ namespace huldra::ui
             filterArea = bottom.removeFromLeft (bottom.getWidth() * 66 / 100);
             bottom.removeFromLeft (10);
             fenvArea = bottom;
+            filterLock.place (filterArea);
+            fenvLock.place (fenvArea);
+            for (auto& l : engineLocks) l.place (knobArea);
             auto f = filterArea.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (8);
             auto top = f.removeFromTop (48);
             curve.setBounds (top.removeFromRight (230).reduced (2, 0));
@@ -640,12 +649,15 @@ namespace huldra::ui
             shownEngine = juce::roundToInt (proc.apvts.getRawParameterValue ("engine")->load());
             for (int i = 0; i < (int) rows.size(); ++i)
                 rows[(size_t) i].setVisible (i / 2 == shownEngine);
+            for (int e = 0; e < 4; ++e) engineLocks[(size_t) e].setVisible (e == shownEngine);
         }
 
         EngineCards cards;
         EngineVisual visual;
         FilterCurve curve;
         AdsrGraph fenvGraph;
+        PanelLock filterLock, fenvLock;
+        std::array<PanelLock, 4> engineLocks;   // classic (voice), granular, spectral, vocal: the panel shows the shown engine's lock
         std::array<ControlRow, 8> rows;
         ControlRow filterTop, filterKnobs, fenv;
         juce::Rectangle<int> knobArea, filterArea, fenvArea;

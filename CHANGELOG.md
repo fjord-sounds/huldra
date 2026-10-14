@@ -4,6 +4,20 @@ All notable changes to Huldra. The format follows [Keep a Changelog](https://kee
 versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+- Built on [fjord-base](https://github.com/fjord-sounds/fjord-base), the code shared by all Fjord plugins: clone it next to
+  this repository (or CMake downloads the pinned release). Header, preset bar, browser, controls, theme, the FX page,
+  build scripts, CI workflows and the screenshot tooling now come from there.
+- **Unified effects**: fifteen effects and the clipper in every Fjord plugin – Saturation, Lo-Fi, Transient, Compressor,
+  Squash, EQ, Filter, Motion, Delay, Reverb, Width and the new Tremolo / Auto-Pan, Frequency Shifter, Exciter and
+  Harmonizer – with at least 40 presets per effect and 35 effect chains (**FX CHAIN**, **Lock FX**). Existing effects were
+  extended (e.g. filter LFO and per-note envelope, delay modes, reverb modes with freeze, EQ slopes, motion modes).
+- **Locks**: the padlock in the preset bar keeps engines, chops, key edits, voice, filter, envelopes, MSEGs, LFOs, matrix,
+  macros, motion settings and effects when switching presets; padlocks in the panels of the pages.
+- *Window size* in the options menu (75–150 %).
+- The FX page is the same in all plugins: live tiles in two rows, big graph, per-effect preset menu.
+- Effect parameter ids are now `fx_<effect>_<param>` and the factory presets use them; the effect order is stored as ids.
+- Huldra's own effect code was replaced by the shared effects (the limiter is the Clipper); the factory presets were converted.
+- The screenshot tool reads `tools/screenshots/shots.conf`.
 
 ## [0.1.0] – first version
 - Sound design sampler: load (drag and drop, several files at once) or record your own sounds; pitch, melody,

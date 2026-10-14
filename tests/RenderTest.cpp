@@ -5,6 +5,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "ui/Theme.h"
+#include "presets/Locks.h"
 
 namespace P = huldra::params;
 
@@ -199,7 +200,7 @@ namespace
                 set (proc->apvts, P::GrnPitchRand, 0.0f);
                 set (proc->apvts, P::GrnPos, 0.4f);
                 set (proc->apvts, P::SpcPos, 0.3f);
-                set (proc->apvts, P::LimOn, 0.0f);
+                set (proc->apvts, P::FxOutOn, 0.0f);
                 const auto s = render (*proc, { { 0.0, 1.5, note } }, 1.5);
                 juce::AudioBuffer<float> part (2, (int) (testSampleRate * 1.0));
                 for (int ch = 0; ch < 2; ++ch) part.copyFrom (ch, 0, s.audio, ch, (int) (testSampleRate * 0.3), part.getNumSamples());
@@ -223,8 +224,8 @@ namespace
             set (proc->apvts, P::SmpLoopMode, 1.0f);
             set (proc->apvts, P::Polyphony, 16.0f);
             set (proc->apvts, P::GrnDensity, 60.0f);
-            set (proc->apvts, P::VerbOn, 1.0f);
-            set (proc->apvts, P::DlyOn, 1.0f);
+            set (proc->apvts, P::FxVerbOn, 1.0f);
+            set (proc->apvts, P::FxDlyOn, 1.0f);
             if (engine == 0) set (proc->apvts, P::UniVoices, 4.0f);
             std::vector<Note> notes;
             for (int i = 0; i < 16; ++i) notes.push_back ({ 0.01 * i, 2.5, 48 + i * 2 });
@@ -294,10 +295,10 @@ namespace
             { "chord + strum", [] (HuldraProcessor& p) { set (p.apvts, P::ChordType, 6); set (p.apvts, P::ChordStrum, 60); } },
             { "mono glide", [] (HuldraProcessor& p) { set (p.apvts, P::VoiceMode, 2); set (p.apvts, P::Glide, 0.3f); } },
             { "all effects", [] (HuldraProcessor& p)
-                { for (auto id : { P::SatOn, P::LofiOn, P::CompOn, P::SqOn, P::EqOn, P::ChrOn, P::DlyOn, P::VerbOn, P::WidthOn }) set (p.apvts, id, 1);
-                  set (p.apvts, P::VerbMode, 3); set (p.apvts, P::DlyMode, 2); set (p.apvts, P::ChrMode, 1); set (p.apvts, P::VerbDecay, 1.0f); } },
+                { for (auto id : { P::FxSatOn, P::FxLofiOn, P::FxCompOn, P::FxSqOn, P::FxEqOn, P::FxMotOn, P::FxDlyOn, P::FxVerbOn, P::FxWidthOn }) set (p.apvts, id, 1);
+                  set (p.apvts, P::FxVerbMode, 3); set (p.apvts, P::FxDlyMode, 2); set (p.apvts, P::FxMotMode, 1); set (p.apvts, P::FxVerbDecay, 1.0f); } },
             { "cloud reverb, tape delay", [] (HuldraProcessor& p)
-                { set (p.apvts, P::VerbOn, 1); set (p.apvts, P::VerbMode, 4); set (p.apvts, P::DlyOn, 1); set (p.apvts, P::DlyMode, 1); set (p.apvts, P::VerbDecay, 1.2f); } },
+                { set (p.apvts, P::FxVerbOn, 1); set (p.apvts, P::FxVerbMode, 4); set (p.apvts, P::FxDlyOn, 1); set (p.apvts, P::FxDlyMode, 1); set (p.apvts, P::FxVerbDecay, 1.2f); } },
         };
         for (const auto& c : cases)
         {
@@ -486,6 +487,63 @@ namespace
         check (s->peak > 0.01f, "bounce analysis");
     }
 
+    // Locked parts keep their values when another preset is loaded; unlocked parts change
+    void lockTests()
+    {
+        printf ("Locks\n");
+        huldra::PresetManager::ignoreUserPresets = true;
+        auto proc = makeProcessor();
+        const auto& list = proc->presetManager.getPresets();
+        const auto& ids = huldra::locks::ids();
+        const auto& set = huldra::locks::set();
+        auto state = proc->apvts.state;
+        proc->presetManager.setLoadPatterns (true);
+        auto value = [&] (const char* id) { return proc->apvts.getRawParameterValue (id)->load(); };
+        auto pattern = [&] { return proc->instrument.getPattern().toString(); };
+        auto mseg = [&] { return proc->instrument.getMseg (0).toString(); };
+
+        // two presets that differ in the things we lock
+        int a = -1, b = -1;
+        for (int i = 0; i < (int) list.size() && a < 0; ++i)
+            for (int j = i + 1; j < (int) list.size() && a < 0; ++j)
+            {
+                if (! list[(size_t) i].isFactory || ! list[(size_t) j].isFactory) continue;
+                proc->presetManager.load (i);
+                const float cut0 = value ("flt_cutoff"), att0 = value ("amp_attack");
+                const auto p0 = pattern(), m0 = mseg();
+                proc->presetManager.load (j);
+                if (std::abs (value ("flt_cutoff") - cut0) > 1.0f && std::abs (value ("amp_attack") - att0) > 1.0e-3f && pattern() != p0 && mseg() != m0)
+                { a = i; b = j; }
+            }
+        check (a >= 0, "two presets that differ in filter cutoff, amp attack, pattern and MSEG 1");
+        if (a < 0) return;
+
+        proc->presetManager.load (a);
+        const float cut0 = value ("flt_cutoff"), att0 = value ("amp_attack");
+        const auto p0 = pattern(), m0 = mseg();
+        set.setLocked (state, ids.filter, true);
+        set.setLocked (state, ids.pattern, true);
+        set.setLocked (state, ids.msegs[0], true);
+        proc->presetManager.load (b);
+        check (std::abs (value ("flt_cutoff") - cut0) < 1.0e-3f, "locked filter keeps its cutoff");
+        check (std::abs (value ("amp_attack") - att0) > 1.0e-3f, "unlocked amp changes");
+        check (pattern() == p0, "locked pattern is kept");
+        check (mseg() == m0, "locked MSEG is kept");
+
+        set.unlockAll (state);
+        proc->presetManager.load (b);
+        check (std::abs (value ("flt_cutoff") - cut0) > 1.0f && pattern() != p0 && mseg() != m0, "unlocked parts load again");
+
+        // the effect locks come from fjord-base
+        proc->presetManager.load (a);
+        const float mix = value ("fx_reverb_mix");
+        set.setLocked (state, set.find ("fxLock_reverb"), true);
+        proc->presetManager.load (b);
+        check (value ("fx_reverb_mix") == mix, "a locked effect keeps its settings");
+        set.unlockAll (state);
+        printf ("  done\n");
+    }
+
     void presetTests (const juce::File& outDir, bool writeFiles)
     {
         printf ("Presets\n");
@@ -543,7 +601,7 @@ static int loudness (const juce::File& out)
         proc->presetManager.load (i);
         proc->instrument.rebuildNow();
         set (proc->apvts, P::PresetLevel, 0.0f);
-        set (proc->apvts, P::LimOn, 0);
+        set (proc->apvts, P::FxOutOn, 0);
         const bool chops = proc->apvts.getRawParameterValue ("play_mode")->load() > 0.5f;
         const auto s = render (*proc, chops ? std::vector<Note> { { 0.0, 0.3, 60 }, { 0.4, 0.3, 62 }, { 0.8, 0.3, 64 }, { 1.2, 0.3, 65 } }
                                             : std::vector<Note> { { 0.0, 2.0, 60 }, { 0.0, 2.0, 64 }, { 0.0, 2.0, 67 } }, 2.0);
@@ -646,7 +704,7 @@ static int takeScreenshot (const juce::String& pageName, const juce::String& pre
 
     huldra::ui::Theme::get().setDark (theme == "dark");
     std::unique_ptr<juce::AudioProcessorEditor> editorWindow (proc->createEditor());
-    editorWindow->setSize (HuldraView::baseWidth, HuldraView::baseHeight);
+    editorWindow->setSize (HuldraView::width, HuldraView::height);
     auto* editor = dynamic_cast<HuldraEditor*> (editorWindow.get());
     if (editor == nullptr) return 1;
     auto& view = editor->getView();
@@ -822,6 +880,7 @@ int main (int argc, char** argv)
     blockSizeTest();
     stateTest();
     bounceTest();
+    lockTests();
     presetTests (outDir, writeFiles);
 
     printf (failures == 0 ? "ALL PASSED\n" : "%d FAILURES\n", failures);

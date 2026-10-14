@@ -1,6 +1,5 @@
 #pragma once
 #include "PluginProcessor.h"
-#include "ui/LookAndFeelHuldra.h"
 #include "ui/SourcePage.h"
 #include "ui/SlicePage.h"
 #include "ui/KeymapPage.h"
@@ -9,35 +8,20 @@
 #include "ui/KeysPage.h"
 #include "ui/ModPage.h"
 #include "ui/MotionPage.h"
-#include "ui/FxPage.h"
 #include "ui/Footer.h"
-#include "ui/PresetBar.h"
-#include "ui/PresetBrowser.h"
-#include "ui/Header.h"
+#include <fjord_base/fx/FxPage.h>
 
-// The actual UI at a fixed size (1200 x 800). The editor scales it as a whole.
-class HuldraView : public juce::Component,
-                   public juce::TooltipClient,
-                   public juce::FileDragAndDropTarget,
-                   private juce::ChangeListener,
-                   private juce::Timer
+// The actual UI at a fixed size (1200 x 800) inside the shared frame of fjord-base (header, presets, About).
+// The editor scales it as a whole.
+class HuldraView : public huldra::ui::PluginView,
+                   public juce::FileDragAndDropTarget
 {
 public:
-    static constexpr int baseWidth = 1200, baseHeight = 800;
+    static constexpr int width = 1200, height = 800;
 
     explicit HuldraView (HuldraProcessor&);
-    ~HuldraView() override;
 
-    void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
-    void resized() override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override;
-    void mouseDoubleClick (const juce::MouseEvent&) override;
-    void mouseMove (const juce::MouseEvent&) override;
-    void mouseExit (const juce::MouseEvent&) override;
-    bool keyPressed (const juce::KeyPress&) override;
-    juce::String getTooltip() override;
 
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void fileDragEnter (const juce::StringArray&, int, int) override;
@@ -46,31 +30,19 @@ public:
 
     // For the screenshot tool
     static inline const juce::StringArray pageNames { "source", "slice", "keymap", "engine", "spectral", "keys", "mod", "motion", "fx" };
-    void selectPage (int index) { showPage (juce::jlimit (0, (int) tabNames.size() - 1, index)); }
-    void showBrowser (bool shouldShow) { setBrowserVisible (shouldShow); }
-    void showAbout() { about.open(); }
-    void showSaveDialog() { saveDialog.open(); }
-    void tickAnimations();
-    huldra::ui::FxPage& getFxPage() { return fxPage; }
+    void selectPage (int index) { showPage (index); }
+    fjord::base::fx::FxPage& getFxPage() { return fxPage; }
+
+protected:
+    juce::Rectangle<int> layoutContent (juce::Rectangle<int>) override;
+    void layoutTabRow (juce::Rectangle<int>) override;
+    void browserVisibilityChanged (bool open) override;
+    void tickContent (bool offscreen) override;
 
 private:
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
-    void timerCallback() override;
-    void applyTheme();
-    void showPage (int);
-    void setBrowserVisible (bool);
-    huldra::ui::Page* currentPage() const;
-    juce::Rectangle<int> tabBounds (int index) const;
-    juce::Rectangle<int> themeToggleBounds() const;
-    juce::Rectangle<int> githubBounds() const { return themeToggleBounds().translated (-36, 0); }
-    juce::Rectangle<int> redoBounds() const { return githubBounds().translated (-44, 0); }
-    juce::Rectangle<int> undoBounds() const { return redoBounds().translated (-30, 0); }
-    juce::Rectangle<int> logoBounds() const { return { margin, 0, 104, headerHeight }; }
+    static huldra::ui::ViewSetup makeSetup (HuldraProcessor&);
 
     HuldraProcessor& proc;
-    huldra::ui::LookAndFeelHuldra lookAndFeel;
-    juce::TooltipWindow tooltips { this, 600 };
-
     huldra::ui::SourcePage sourcePage;
     huldra::ui::SlicePage slicePage;
     huldra::ui::KeymapPage keymapPage;
@@ -79,44 +51,21 @@ private:
     huldra::ui::KeysPage keysPage;
     huldra::ui::ModPage modPage;
     huldra::ui::MotionPage motionPage;
-    huldra::ui::FxPage fxPage;
-    std::array<huldra::ui::Page*, 9> pages;
+    fjord::base::fx::FxPage fxPage;
 
     huldra::ui::Footer footer;
-    huldra::ui::PresetBar presetBar;
-    huldra::ui::Knob master;
     huldra::ui::Segmented playMode, engine;
-    huldra::ui::PresetBrowser browser;
-    huldra::ui::SaveDialog saveDialog;
-    huldra::ui::LightningMeter levelMeter;
-    huldra::ui::AboutPanel about;
-    int logoClicks = 0;
-    uint32_t lastNotes = 0;
-    float logoFlash = 0.0f;
     bool fileDragOver = false;
     juce::String lastError;
 
-    int page = 0;
-    int hoveredTab = -1;
-    enum class HeaderHover { None, Logo, Theme, Github, Undo, Redo } hover = HeaderHover::None;
-
-    static inline const juce::StringArray tabNames { "Source", "Slice", "Keymap", "Engine", "Spectral", "Keys", "Mod", "Motion", "FX" };
-    static constexpr int headerHeight = 64, tabHeight = 40, footerHeight = 92, margin = 16, tabWidth = 78;
+    static constexpr int footerHeight = 92;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HuldraView)
 };
 
 // Plugin window: freely scalable (75 - 150 %) with a fixed aspect ratio, the size is remembered.
-class HuldraEditor : public juce::AudioProcessorEditor
+class HuldraEditor : public huldra::ui::ScaledEditor<HuldraView, HuldraProcessor>
 {
 public:
-    explicit HuldraEditor (HuldraProcessor&);
-    void resized() override;
-    HuldraView& getView() { return view; }
-
-private:
-    HuldraProcessor& proc;
-    HuldraView view;
-    bool ready = false;
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HuldraEditor)
+    using ScaledEditor::ScaledEditor;
 };

@@ -267,8 +267,10 @@ namespace huldra::ui
     class SpectralPage : public Page
     {
     public:
-        explicit SpectralPage (HuldraProcessor& p) : Page (p), spectrogram (p), mask (p), useSpectral ("Use the spectral engine", true)
+        explicit SpectralPage (HuldraProcessor& p)
+            : Page (p), spectrogram (p), mask (p), useSpectral ("Use the spectral engine", true), spectralLock (p.apvts, locks::ids().spectral)
         {
+            addAndMakeVisible (spectralLock);
             auto& s = p.apvts;
             addAndMakeVisible (spectrogram);
             addAndMakeVisible (mask);
@@ -314,7 +316,8 @@ namespace huldra::ui
             const auto plot = spectrogram.plot();
             mask.area = juce::Rectangle<float> (12.0f, plot.getY(), (float) mask.getWidth() - 24.0f, plot.getHeight());
             row.layout (controls.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6));
-            useSpectral.setBounds (controls.getRight() - 214, controls.getY() + 6, 200, 24);
+            useSpectral.setBounds (controls.getRight() - 240, controls.getY() + 6, 200, 24);
+            spectralLock.place (controls);
         }
 
     private:
@@ -322,6 +325,7 @@ namespace huldra::ui
         MaskPainter mask;
         ControlRow row;
         PillButton useSpectral;
+        PanelLock spectralLock;   // keeps the spectral settings and the mask when switching presets
         juce::Rectangle<int> controls;
     };
 }

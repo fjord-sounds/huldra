@@ -1,7 +1,7 @@
 #pragma once
 #include <juce_audio_formats/juce_audio_formats.h>
-#include "Controls.h"
-#include "Keyboard.h"
+#include "Theme.h"
+#include "Theme.h"
 #include "../PluginProcessor.h"
 
 namespace huldra::ui
@@ -310,7 +310,7 @@ namespace huldra::ui
         {
             const auto values = proc.currentValues();
             const double sr = proc.getCurrentSampleRate() > 1000.0 ? proc.getCurrentSampleRate() : 48000.0;
-            const double tail = std::min (8.0, (double) values[params::AmpRelease] + (values.b (params::VerbOn) ? values[params::VerbDecay] * 0.6 : 0.0) + 0.3);
+            const double tail = std::min (8.0, (double) values[params::AmpRelease] + (values.b (params::FxVerbOn) ? values[params::FxVerbDecay] * 0.6 : 0.0) + 0.3);
             juce::AudioBuffer<float> buf (2, (int) ((2.0 + tail) * sr));
             HuldraProcessor::renderOffline (values, proc.instrument.snapshot(), proc.getFxOrder(), sr, 60, 0.85f, 2.0, buf);
             int end = buf.getNumSamples();

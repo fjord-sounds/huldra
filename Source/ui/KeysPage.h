@@ -291,6 +291,7 @@ namespace huldra::ui
     public:
         explicit KeysPage (HuldraProcessor& p)
             : Page (p), board (p), wheel (p),
+              keysLock (p.apvts, locks::ids().keys), scaleLock (p.apvts, locks::ids().scale),
               tune ("Tune", -24, 24, 0, [] (double v) { return (v > 0.05 ? "+" : "") + juce::String (v, 2) + " st"; }),
               gain ("Gain", -36, 12, 0, [] (double v) { return (v > 0.05 ? "+" : "") + juce::String (v, 1) + " dB"; }),
               pan ("Pan", -1, 1, 0, [] (double v) { const int x = juce::roundToInt (v * 100.0); return x == 0 ? juce::String ("C") : (x < 0 ? "L" + juce::String (-x) : "R" + juce::String (x)); }),
@@ -306,6 +307,8 @@ namespace huldra::ui
             auto& s = p.apvts;
             addAndMakeVisible (board);
             addAndMakeVisible (wheel);
+            addAndMakeVisible (keysLock);
+            addAndMakeVisible (scaleLock);
             for (auto* k : { &tune, &gain, &pan, &cutoff, &start, &formant, &choke, &slice })
             {
                 addAndMakeVisible (*k);
@@ -372,6 +375,8 @@ namespace huldra::ui
             editArea = r.removeFromLeft (r.getWidth() * 55 / 100);
             r.removeFromLeft (10);
             playArea = r;
+            keysLock.place (editArea);
+            scaleLock.place (playArea);
 
             auto e = editArea.reduced (12, 0).withTrimmedTop (34).withTrimmedBottom (10);
             auto knobs = e.removeFromTop (84);
@@ -433,6 +438,7 @@ namespace huldra::ui
 
         KeyBoard board;
         ChordWheel wheel;
+        PanelLock keysLock, scaleLock;   // keep the key edits / scale and chords when switching presets
         ValueKnob tune, gain, pan, cutoff, start, formant, choke, slice;
         ChoiceChips engine, flags;
         PillButton resetKey, resetAll;

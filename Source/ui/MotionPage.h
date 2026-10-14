@@ -348,8 +348,13 @@ namespace huldra::ui
     class MotionPage : public Page
     {
     public:
-        explicit MotionPage (HuldraProcessor& p) : Page (p), steps (p), stars (p)
+        explicit MotionPage (HuldraProcessor& p)
+            : Page (p), steps (p), stars (p), motionLock (p.apvts, locks::ids().motion), arpLock (p.apvts, locks::ids().arp),
+              genLock (p.apvts, locks::ids().generative)
         {
+            addAndMakeVisible (motionLock);
+            addAndMakeVisible (arpLock);
+            addAndMakeVisible (genLock);
             auto& s = p.apvts;
             addAndMakeVisible (steps);
             addAndMakeVisible (stars);
@@ -410,6 +415,9 @@ namespace huldra::ui
             arpArea = bottom.removeFromLeft (bottom.getWidth() * 38 / 100);
             bottom.removeFromLeft (10);
             genArea = bottom;
+            motionLock.setBounds (topArea.reduced (14, 0).removeFromTop (30).removeFromRight (18).withSizeKeepingCentre (18, 18).translated (0, 4));
+            arpLock.place (arpArea);
+            genLock.place (genArea);
             arp.layout (arpArea.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6));
             gen.layout (genArea.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6));
         }
@@ -418,6 +426,7 @@ namespace huldra::ui
         StepEditor steps;
         Constellation stars;
         ControlRow common, arp, gen;
+        PanelLock motionLock, arpLock, genLock;   // keep this part when switching presets
         juce::Rectangle<int> topArea, mainArea, arpArea, genArea;
     };
 }

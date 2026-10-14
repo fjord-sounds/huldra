@@ -138,7 +138,7 @@ function hero(theme) {
     <div class="facts">
       <b>4</b> engines · granular · spectral · formant<br>
       slices · keymap · every key editable<br>
-      motion · <b>4</b> lfos · <b>3</b> msegs · <b>9</b> effects<br>
+      motion · <b>4</b> lfos · <b>3</b> msegs · <b>15</b> effects<br>
       <b>${presetCount()}</b> factory presets<br>
       <b>VST3</b> · <b>AU</b> · <b>LV2</b> · standalone
     </div>

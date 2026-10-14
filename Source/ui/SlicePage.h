@@ -257,8 +257,9 @@ namespace huldra::ui
     class SlicePage : public Page
     {
     public:
-        explicit SlicePage (HuldraProcessor& p) : Page (p), view (p), chopsButton ("Play as chops", true)
+        explicit SlicePage (HuldraProcessor& p) : Page (p), view (p), chopsButton ("Play as chops", true), chopLock (p.apvts, locks::ids().chops)
         {
+            addAndMakeVisible (chopLock);
             auto& s = p.apvts;
             addAndMakeVisible (view);
             row.add (labelled (std::make_unique<Segmented> (s, P::paramId (P::ChopMode), nullptr,
@@ -307,13 +308,15 @@ namespace huldra::ui
             r.removeFromBottom (10);
             view.setBounds (r);
             row.layout (controls.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6));
-            chopsButton.setBounds (controls.getRight() - 170, controls.getY() + 6, 156, 24);
+            chopsButton.setBounds (controls.getRight() - 196, controls.getY() + 6, 156, 24);
+            chopLock.place (controls);
         }
 
     private:
         SliceView view;
         ControlRow row;
         PillButton chopsButton;
+        PanelLock chopLock;   // keeps the chop settings when switching presets
         juce::Rectangle<int> controls;
     };
 }

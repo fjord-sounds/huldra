@@ -5,7 +5,10 @@
 #include "Parameters.h"
 #include "dsp/Synth.h"
 #include "motion/MotionEngine.h"
-#include "fx/FxChain.h"
+#include <fjord_base/fx/Chain.h>
+#include <fjord_base/fx/OrderState.h>
+#include <fjord_base/fx/ChainPresets.h>
+#include <fjord_base/plugin/PluginHelpers.h>
 #include "state/InstrumentState.h"
 #include "presets/PresetManager.h"
 #include "sample/Recorder.h"
@@ -44,8 +47,7 @@ namespace huldra
     };
 }
 
-class HuldraProcessor : public juce::AudioProcessor,
-                        private juce::ValueTree::Listener
+class HuldraProcessor : public juce::AudioProcessor
 {
 public:
     HuldraProcessor();
@@ -80,13 +82,15 @@ public:
     huldra::PresetManager presetManager { apvts, instrument, &undoManager };
     juce::MidiKeyboardState keyboardState;
     huldra::ScopeBuffer scope;
-    huldra::fx::FxMeters fxMeters;
+    fjord::base::fx::Meters fxMeters;
+    fjord::base::fx::ChainPresets chainPresets { apvts };   // effect chains (shared by every Fjord plugin)
+    fjord::base::fx::OrderState fxOrder { apvts, &undoManager, fjord::base::fx::defaultOrder(), huldra::PresetManager::normaliseOrder };
     huldra::dsp::VoiceDisplay voiceDisplay;
     huldra::Recorder recorder;
     std::atomic<float> uiPitchBend { 0.0f }, uiModWheel { 0.0f };   // the on-screen wheels
 
-    huldra::fx::Order getFxOrder() const;
-    void setFxOrder (const huldra::fx::Order&);
+    fjord::base::fx::Order getFxOrder() const { return fxOrder.get(); }
+    void setFxOrder (const fjord::base::fx::Order& o) { fxOrder.set (o); }
     void requestPanic() { panicRequested.store (true); }
 
     // Internal transport for the motion engine when the host is stopped
@@ -100,10 +104,7 @@ public:
     float getLivePadX() const { return livePadX.load(); }
     float getLivePadY() const { return livePadY.load(); }
 
-    std::array<float, 2> takeOutputPeaks()
-    {
-        return { outputPeak[0].exchange (0.0f, std::memory_order_relaxed), outputPeak[1].exchange (0.0f, std::memory_order_relaxed) };
-    }
+    std::array<float, 2> takeOutputPeaks() { return outputPeaks.take(); }
 
     huldra::params::Values currentValues() const;
 
@@ -124,21 +125,20 @@ public:
     juce::String getDebugReport() const;
 
     // Offline rendering used by the bounce and the tests: renders into 'out' with fresh DSP objects.
-    static void renderOffline (const huldra::params::Values&, const huldra::Snapshot&, const huldra::fx::Order&,
+    static void renderOffline (const huldra::params::Values&, const huldra::Snapshot&, const fjord::base::fx::Order&,
                                double sampleRate, int note, float velocity, double holdSeconds, juce::AudioBuffer<float>& out);
 
 private:
     void processChunk (juce::AudioBuffer<float>&, juce::MidiBuffer&, double ppq, bool playing);
-    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override;
-    void syncFxOrderFromState();
     void applyPadDrift (huldra::params::Values&, int numSamples);
 
     huldra::params::Reader reader { apvts };
     huldra::params::Values values, liveValues;
     huldra::dsp::Synth synth;
     huldra::motion::MotionEngine motion;
-    huldra::fx::FxChain fxChain;
-    std::array<std::atomic<int>, huldra::fx::kNumFx> fxOrder {};
+    fjord::base::fx::Chain fxChain;
+    fjord::base::plugin::BlockSplitter splitter;
+    std::vector<int> triggerPositions = std::vector<int> ((size_t) huldra::motion::MotionEngine::kMaxOut);
 
     static constexpr int kMaxEvents = 512;
     std::array<huldra::dsp::NoteEvent, kMaxEvents> inEvents {}, outEvents {};
@@ -148,7 +148,7 @@ private:
     std::atomic<bool> panicRequested { false }, hostPlaying { false }, bouncing { false };
     std::atomic<double> bpm { 120.0 };
     std::atomic<float> livePadX { 0.5f }, livePadY { 0.5f };
-    std::array<std::atomic<float>, 2> outputPeak {};
+    fjord::base::plugin::PeakMeter outputPeaks;
     juce::SmoothedValue<float> masterGain, presetLevel;
     std::array<float, 2> dcX {}, dcY {};
     float dcCoef = 0.9995f, lastUiBend = 0.0f, lastUiMod = 0.0f;

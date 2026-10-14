@@ -68,6 +68,14 @@ namespace huldra
         std::vector<SamplePtr> keepAlive;
     };
 
+    // Parts of a treatment that stay as they are when a preset is applied (locked in the preset bar, or the pattern when
+    // presets must not bring one)
+    struct TreatmentKeep
+    {
+        bool keys = false, pattern = false, mask = false;
+        std::array<bool, dsp::kNumMsegs> msegs {};
+    };
+
     class InstrumentState : public juce::ChangeBroadcaster,
                             private juce::ValueTree::Listener,
                             private juce::Timer,
@@ -130,8 +138,8 @@ namespace huldra
 
         // Presets carry the "treatment" (keys, MSEGs, pattern, mask), never the user's samples.
         void writeTreatment (juce::XmlElement& presetXml) const;
-        void applyTreatment (const juce::XmlElement& presetXml, juce::UndoManager*);
-        static void resetTreatment (juce::ValueTree instrument, juce::UndoManager*);
+        void applyTreatment (const juce::XmlElement& presetXml, juce::UndoManager*, const TreatmentKeep& keep = {});
+        static void resetTreatment (juce::ValueTree instrument, juce::UndoManager*, const TreatmentKeep& keep = {});
 
         // Project state: the audio of every sample is embedded (FLAC) or referenced by path.
         void embedAudio (juce::ValueTree& stateCopy) const;

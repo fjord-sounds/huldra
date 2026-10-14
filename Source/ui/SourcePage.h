@@ -592,8 +592,12 @@ namespace huldra::ui
         explicit SourcePage (HuldraProcessor& p)
             : Page (p), strip (p), waveform (p),
               ampGraph (p.apvts, P::AmpAttack, P::AmpDecay, P::AmpSustain, P::AmpRelease,
-                        [&p] { return p.voiceDisplay.sources[(size_t) P::ModSource::AmpEnv].load(); })
+                        [&p] { return p.voiceDisplay.sources[(size_t) P::ModSource::AmpEnv].load(); }),
+              playbackLock (p.apvts, locks::ids().classic), voiceLock (p.apvts, locks::ids().voice), ampLock (p.apvts, locks::ids().amp)
         {
+            addAndMakeVisible (playbackLock);
+            addAndMakeVisible (voiceLock);
+            addAndMakeVisible (ampLock);
             addAndMakeVisible (strip);
             addAndMakeVisible (waveform);
             auto& s = p.apvts;
@@ -655,6 +659,9 @@ namespace huldra::ui
             top.removeFromLeft (8);
             voiceArea = top;
             ampArea = bottom;
+            playbackLock.place (playbackArea);
+            voiceLock.place (voiceArea);
+            ampLock.place (ampArea);
             playback.layout (playbackArea.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6));
             voice.layout (voiceArea.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6));
             auto a = ampArea.reduced (10, 0).withTrimmedTop (30).withTrimmedBottom (6);
@@ -668,6 +675,7 @@ namespace huldra::ui
         WaveformView waveform;
         ControlRow playback, voice, amp;
         AdsrGraph ampGraph;
+        PanelLock playbackLock, voiceLock, ampLock;   // keep this part when switching presets
         juce::Rectangle<int> playbackArea, voiceArea, ampArea;
     };
 }

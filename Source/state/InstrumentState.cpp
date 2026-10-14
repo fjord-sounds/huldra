@@ -484,25 +484,30 @@ namespace huldra
                     xml.addChildElement (e.release());
     }
 
-    void InstrumentState::resetTreatment (juce::ValueTree inst, juce::UndoManager* um)
+    void InstrumentState::resetTreatment (juce::ValueTree inst, juce::UndoManager* um, const TreatmentKeep& keep)
     {
-        inst.getOrCreateChildWithName (keysId, nullptr).removeAllChildren (um);
+        if (! keep.keys)
+            inst.getOrCreateChildWithName (keysId, nullptr).removeAllChildren (um);
         auto msegs = inst.getOrCreateChildWithName (msegsId, nullptr);
         for (int i = 0; i < dsp::kNumMsegs; ++i)
-            if (auto m = msegs.getChildWithProperty (idProp, i); m.isValid())
+            if (auto m = msegs.getChildWithProperty (idProp, i); m.isValid() && ! keep.msegs[(size_t) i])
                 m.setProperty (pointsProp, dsp::defaultMseg (i).toString(), um);
-        inst.getOrCreateChildWithName (patternId, nullptr).setProperty (stepsProp, motion::Pattern::defaultPattern().toString(), um);
-        std::array<float, kMaskBands> m;
-        m.fill (1.0f);
-        inst.getOrCreateChildWithName (maskId, nullptr).setProperty (bandsProp, maskToString (m), um);
+        if (! keep.pattern)
+            inst.getOrCreateChildWithName (patternId, nullptr).setProperty (stepsProp, motion::Pattern::defaultPattern().toString(), um);
+        if (! keep.mask)
+        {
+            std::array<float, kMaskBands> m;
+            m.fill (1.0f);
+            inst.getOrCreateChildWithName (maskId, nullptr).setProperty (bandsProp, maskToString (m), um);
+        }
     }
 
-    void InstrumentState::applyTreatment (const juce::XmlElement& xml, juce::UndoManager* um)
+    void InstrumentState::applyTreatment (const juce::XmlElement& xml, juce::UndoManager* um, const TreatmentKeep& keep)
     {
         auto inst = tree();
-        resetTreatment (inst, um);
+        resetTreatment (inst, um, keep);
 
-        if (auto* keys = xml.getChildByName (keysId))
+        if (auto* keys = xml.getChildByName (keysId); keys != nullptr && ! keep.keys)
         {
             auto node = inst.getChildWithName (keysId);
             for (auto* k : keys->getChildWithTagNameIterator (keyId.toString()))
@@ -522,12 +527,13 @@ namespace huldra
             for (auto* m : msegs->getChildWithTagNameIterator (msegId.toString()))
             {
                 const int id = m->getIntAttribute ("id", -1);
+                if (juce::isPositiveAndBelow (id, dsp::kNumMsegs) && keep.msegs[(size_t) id]) continue;
                 if (auto node = inst.getChildWithName (msegsId).getChildWithProperty (idProp, id); node.isValid())
                     node.setProperty (pointsProp, dsp::EnvShape::fromString (m->getStringAttribute ("points"), dsp::defaultMseg (id)).toString(), um);
             }
-        if (auto* p = xml.getChildByName (patternId))
+        if (auto* p = xml.getChildByName (patternId); p != nullptr && ! keep.pattern)
             inst.getChildWithName (patternId).setProperty (stepsProp, motion::Pattern::fromString (p->getStringAttribute ("steps")).toString(), um);
-        if (auto* m = xml.getChildByName (maskId))
+        if (auto* m = xml.getChildByName (maskId); m != nullptr && ! keep.mask)
             inst.getChildWithName (maskId).setProperty (bandsProp, maskToString (maskFromString (m->getStringAttribute ("bands"))), um);
     }
 

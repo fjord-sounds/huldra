@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<HuldraPreset name="Drifting Keys" category="Motion" author="Fjord" tags="Keys,Evolving" description="Hold a key - it improvises around it" macros="Tone|Space|Motion|Texture|Macro 5|Macro 6|Macro 7|Macro 8">
-  <Param id="lim_on" value="1"/>
+<HuldraPreset name="Drifting Keys" category="Motion" author="Fjord" tags="Keys,Evolving" description="Hold a key - it improvises around it" macros="Tone|Space|Motion|Texture|Macro 5|Macro 6|Macro 7|Macro 8" fxOrder="saturation,lofi,eq,compressor,squash,motion,delay,reverb,width">
   <Param id="engine" value="0"/>
   <Param id="demo_voice" value="2"/>
   <Param id="amp_attack" value="0.001"/>
@@ -18,27 +17,6 @@
   <Param id="mot_rate" value="1"/>
   <Param id="mot_free" value="0"/>
   <Param id="mot_gate" value="0.9"/>
-  <Param id="dly_on" value="1"/>
-  <Param id="dly_mode" value="0"/>
-  <Param id="dly_sync" value="1"/>
-  <Param id="dly_beats" value="2"/>
-  <Param id="dly_fb" value="0.35"/>
-  <Param id="dly_mix" value="0.18"/>
-  <Param id="dly_pingpong" value="1"/>
-  <Param id="dly_damp" value="0.4"/>
-  <Param id="dly_lowcut" value="200"/>
-  <Param id="dly_duck" value="0.2"/>
-  <Param id="verb_on" value="1"/>
-  <Param id="verb_mode" value="1"/>
-  <Param id="verb_size" value="0.55"/>
-  <Param id="verb_decay" value="2.2"/>
-  <Param id="verb_mix" value="0.22"/>
-  <Param id="verb_damp" value="0.4"/>
-  <Param id="verb_predelay" value="0.02"/>
-  <Param id="verb_shimmer" value="0.4"/>
-  <Param id="verb_lowcut" value="180"/>
-  <Param id="verb_width" value="1"/>
-  <Param id="verb_duck" value="0"/>
   <Param id="flt_on" value="1"/>
   <Param id="flt_type" value="0"/>
   <Param id="flt_cutoff" value="9000"/>
@@ -51,15 +29,93 @@
   <Param id="macro2" value="0"/>
   <Param id="macro3" value="0"/>
   <Param id="macro4" value="0"/>
-  <Param id="preset_level" value="7.10866"/>
+  <Param id="preset_level" value="7.29884"/>
+  <Param id="fx_delay_on" value="1"/>
+  <Param id="fx_delay_mode" value="0"/>
+  <Param id="fx_delay_sync" value="1"/>
+  <Param id="fx_delay_note" value="2"/>
+  <Param id="fx_delay_feedback" value="0.35"/>
+  <Param id="fx_delay_pingpong" value="1"/>
+  <Param id="fx_delay_damp" value="0.4"/>
+  <Param id="fx_delay_lowcut" value="200"/>
+  <Param id="fx_delay_duck" value="0.2"/>
+  <Param id="fx_delay_mix" value="0.18"/>
+  <Param id="fx_reverb_on" value="1"/>
+  <Param id="fx_reverb_mode" value="1"/>
+  <Param id="fx_reverb_size" value="0.55"/>
+  <Param id="fx_reverb_decay" value="2.2"/>
+  <Param id="fx_reverb_damp" value="0.4"/>
+  <Param id="fx_reverb_predelay" value="0.02"/>
+  <Param id="fx_reverb_lowcut" value="180"/>
+  <Param id="fx_reverb_width" value="1"/>
+  <Param id="fx_reverb_shimmer" value="0.4"/>
+  <Param id="fx_reverb_duck" value="0"/>
+  <Param id="fx_reverb_mix" value="0.22"/>
+  <Param id="fx_out_on" value="1"/>
+  <Param id="fx_saturation_on" value="0"/>
+  <Param id="fx_saturation_mode" value="0"/>
+  <Param id="fx_saturation_drive" value="0.3"/>
+  <Param id="fx_saturation_bias" value="0"/>
+  <Param id="fx_saturation_tone" value="0"/>
+  <Param id="fx_saturation_os" value="1"/>
+  <Param id="fx_saturation_mix" value="1"/>
+  <Param id="fx_saturation_out" value="0"/>
+  <Param id="fx_lofi_on" value="0"/>
+  <Param id="fx_lofi_wow" value="0.3"/>
+  <Param id="fx_lofi_flutter" value="0.2"/>
+  <Param id="fx_lofi_bits" value="16"/>
+  <Param id="fx_lofi_rate" value="1"/>
+  <Param id="fx_lofi_noise" value="0.1"/>
+  <Param id="fx_lofi_age" value="0.3"/>
+  <Param id="fx_lofi_mix" value="1"/>
+  <Param id="fx_compressor_on" value="0"/>
+  <Param id="fx_compressor_thresh" value="-18"/>
+  <Param id="fx_compressor_ratio" value="3"/>
+  <Param id="fx_compressor_attack" value="10"/>
+  <Param id="fx_compressor_release" value="150"/>
+  <Param id="fx_compressor_knee" value="6"/>
+  <Param id="fx_compressor_makeup" value="0"/>
+  <Param id="fx_compressor_mix" value="1"/>
+  <Param id="fx_compressor_hpf" value="20"/>
+  <Param id="fx_squash_on" value="0"/>
+  <Param id="fx_squash_depth" value="0.4"/>
+  <Param id="fx_squash_time" value="0.4"/>
+  <Param id="fx_squash_upward" value="0.6"/>
+  <Param id="fx_squash_out" value="0"/>
+  <Param id="fx_eq_on" value="0"/>
+  <Param id="fx_eq_lowcut" value="20"/>
+  <Param id="fx_eq_low_freq" value="120"/>
+  <Param id="fx_eq_low_gain" value="0"/>
+  <Param id="fx_eq_mid_freq" value="400"/>
+  <Param id="fx_eq_mid_gain" value="0"/>
+  <Param id="fx_eq_mid_q" value="1"/>
+  <Param id="fx_eq_mid2_freq" value="3000"/>
+  <Param id="fx_eq_mid2_gain" value="0"/>
+  <Param id="fx_eq_mid2_q" value="1"/>
+  <Param id="fx_eq_high_freq" value="9000"/>
+  <Param id="fx_eq_high_gain" value="0"/>
+  <Param id="fx_eq_highcut" value="20000"/>
+  <Param id="fx_motion_on" value="0"/>
+  <Param id="fx_motion_mode" value="0"/>
+  <Param id="fx_motion_rate" value="0.5"/>
+  <Param id="fx_motion_depth" value="0.5"/>
+  <Param id="fx_motion_feedback" value="0.2"/>
+  <Param id="fx_motion_mix" value="0.4"/>
+  <Param id="fx_delay_time" value="350"/>
+  <Param id="fx_width_on" value="0"/>
+  <Param id="fx_width_amount" value="1.2"/>
+  <Param id="fx_width_mono" value="100"/>
+  <Param id="fx_out_mode" value="0"/>
+  <Param id="fx_out_drive" value="0"/>
+  <Param id="fx_out_ceiling" value="-0.3"/>
   <Param id="mod1_src" value="17"/>
   <Param id="mod1_dst" value="36"/>
   <Param id="mod1_amt" value="0.25"/>
   <Param id="mod2_src" value="18"/>
-  <Param id="mod2_dst" value="130"/>
+  <Param id="mod2_dst" value="148"/>
   <Param id="mod2_amt" value="0.3"/>
   <Param id="mod3_src" value="18"/>
-  <Param id="mod3_dst" value="121"/>
+  <Param id="mod3_dst" value="138"/>
   <Param id="mod3_amt" value="0.25"/>
   <Param id="mod4_src" value="19"/>
   <Param id="mod4_dst" value="52"/>
